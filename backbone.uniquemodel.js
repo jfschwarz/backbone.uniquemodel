@@ -1,6 +1,5 @@
 /*jshint unused:true, undef:true, strict:true*/
-/*global global, _, Backbone*/
-(function (window) {
+define(["underscore", "backbone"], function(_, Backbone) {
   "use strict";
 
   var globalCache = {};
@@ -262,6 +261,8 @@
     LocalStorageAdapter: LocalStorageAdapter
   });
 
-  window.Backbone.UniqueModel = UniqueModel;
+  Backbone.UniqueModel = UniqueModel;
 
-})(typeof global === "object" ? global : this);
+  return Backbone;
+
+});
