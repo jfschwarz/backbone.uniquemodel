@@ -1,4 +1,6 @@
 /*jshint unused:true, undef:true, strict:true*/
+
+// modified by @jfschwarz for AMD compliance.
 (function(root, factory) {
   "use strict";
 
