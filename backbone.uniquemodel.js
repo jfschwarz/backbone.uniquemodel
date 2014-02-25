@@ -26,8 +26,6 @@
 }(this, function(root, exports, _, Backbone) {
   "use strict";
 
-  exports = Backbone;
-
   var globalCache = {};
 
   /**
@@ -289,6 +287,7 @@
 
   Backbone.UniqueModel = UniqueModel;
 
+  _.extend(exports, Backbone);
   return Backbone;
 
 }));
