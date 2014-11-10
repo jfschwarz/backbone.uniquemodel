@@ -188,7 +188,7 @@
           this.modelConstructor.trigger('uniquemodel.add', instance);
       } else {
         // Otherwise update the attributes of the cached instance
-        instance.set(attrs);
+        instance.set(attrs, options);
         if (!options.fromStorage)
           this.instanceSync(instance);
       }
