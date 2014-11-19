@@ -85,7 +85,6 @@
             delete modelCache.instances[id];
           }
         }
-        delete globalCache[modelName];
       }
     }
   };
