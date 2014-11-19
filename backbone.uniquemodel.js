@@ -60,7 +60,7 @@
   UniqueModel.getModelCache = function (modelName) {
     var cache = globalCache[modelName];
     if (!cache)
-      throw "Unrecognized model: " + modelName;
+      throw new Error("Unrecognized model: " + modelName);
 
     return cache;
   };
@@ -78,8 +78,15 @@
   // Clears all in-memory instances
   UniqueModel.clear = function () {
     for (var modelName in globalCache) {
-      if (globalCache.hasOwnProperty(modelName))
+      if (globalCache.hasOwnProperty(modelName)) {
+        var modelCache = globalCache[modelName];
+        for (var id in modelCache.instances) {
+          if (modelCache.instances.hasOwnProperty(id)) {
+            delete modelCache.instances[id];
+          }
+        }
         delete globalCache[modelName];
+      }
     }
   };
 
@@ -271,7 +278,7 @@
 
     save: function (id, attrs) {
       if (!id)
-        throw 'Cannot save without id';
+        throw new Error('Cannot save without id');
 
       var json = JSON.stringify(attrs);
       localStorage.setItem(this.getStorageKey(id), json);
@@ -279,7 +286,7 @@
 
     remove: function (id) {
       if (!id)
-        throw 'Cannot remove without id';
+        throw new Error('Cannot remove without id');
 
       localStorage.removeItem(this.getStorageKey(id));
     }
