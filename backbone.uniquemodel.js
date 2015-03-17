@@ -4,7 +4,7 @@
 
   // try AMD
   if (typeof define === 'function' && define.amd) {
-    define('backbone-uniquemodel', ['backbone'], function (Backbone) {
+    define(['backbone'], function (Backbone) {
       return factory(Backbone);
     });
 
