@@ -4,14 +4,14 @@
 
   // try AMD
   if (typeof define === 'function' && define.amd) {
-    define(['backbone'], function (Backbone) {
-      Backbone.UniqueModel = factory(Backbone);
+    define('backbone-uniquemodel', ['backbone'], function (Backbone) {
+      return factory(Backbone);
     });
 
   // Next for Node.js or CommonJS
   } else if (typeof exports !== 'undefined') {
     var Backbone = require('backbone');
-    Backbone.UniqueModel = factory(Backbone);
+    exports.UniqueModel = factory(Backbone);
 
   // else just attach to the Backbone global
   } else {
