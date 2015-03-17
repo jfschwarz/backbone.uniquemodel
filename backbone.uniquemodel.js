@@ -1,29 +1,24 @@
 /*jshint unused:true, undef:true, strict:true*/
-
-// modified by @jfschwarz for AMD compliance.
+/*global global, _, Backbone*/
 (function(root, factory) {
-  "use strict";
 
-  // Set up Backbone appropriately for the environment. Start with AMD.
+  // try AMD
   if (typeof define === 'function' && define.amd) {
-    define(['underscore', 'backbone', 'exports'], function(_, Backbone, exports) {
-      // Export global even in AMD case in case this script is loaded with
-      // others that may still expect a global Backbone.
-      root.Backbone = factory(root, exports, _, Backbone);
+    define(['backbone'], function (Backbone) {
+      Backbone.UniqueModel = factory(Backbone);
     });
 
-  // Next for Node.js or CommonJS.
+  // Next for Node.js or CommonJS
   } else if (typeof exports !== 'undefined') {
-    var _ = require('underscore'),
-        Backbone = require('backbone');
+    var Backbone = require('backbone');
+    Backbone.UniqueModel = factory(Backbone);
 
-    factory(root, exports, _, Backbone);
-  // Finally, as a browser global.
+  // else just attach to the Backbone global
   } else {
-    root.Backbone = factory(root, {}, root._, root.Backbone);
+    root.Backbone.UniqueModel = factory(root.Backbone);
   }
 
-}(this, function(root, exports, _, Backbone) {
+}(this, function(Backbone) {
   "use strict";
 
   var globalCache = {};
@@ -102,7 +97,9 @@
 
     this.storage = null;
     if (storageAdapter === 'localStorage') {
-      this.storage = new LocalStorageAdapter(this.modelName);
+      this.storage = new StorageAdapter(this.modelName, localStorage);
+    } else if (storageAdapter === 'sessionStorage') {
+      this.storage = new StorageAdapter(this.modelName, sessionStorage);
     }
 
     if (this.storage) {
@@ -113,11 +110,18 @@
     var modelConstructor = function (attrs, options) {
       return self.get(attrs, options);
     };
+
+    // Extend Model's static properties onto new
+    _.extend(modelConstructor, Model);
+
+    // NOTE: currently possible for Backbone.Events functions to collide with
+    //       Model static properties e.g. Model.on vs Backbone.Events.on
     _.extend(modelConstructor, Backbone.Events);
 
     // Backbone collections need prototype of wrapped class
     modelConstructor.prototype = this.Model.prototype;
     this.modelConstructor = modelConstructor;
+
   }
 
   _.extend(ModelCache.prototype, {
@@ -125,19 +129,22 @@
     newModel: function (attrs, options) {
       var instance = new this.Model(attrs, options);
 
-      if(!instance.id) {
-        instance.once('change:'+instance.idAttribute, function() {
-          if(!this.instances[instance.id]) this.instances[instance.id] = instance;
+      if (!instance.id) {
+        // If this model currently has no id, but gains one later (e.g. via sync),
+        // then add it to the list of tracked instances
+        instance.once('change:' + instance.idAttribute, function () {
+          if (!this.instances[instance.id])
+            this.instances[instance.id] = instance;
         }, this);
       }
 
       if (this.storage) {
         if (instance.id)
           this.storage.save(instance.id, instance.attributes);
-
-        instance.on('sync', this.instanceSync, this);
-        instance.on('destroy', this.instanceDestroy, this);
       }
+
+      instance.on('sync', this.instanceSync, this);
+      instance.on('destroy', this.instanceDestroy, this);
 
       return instance;
     },
@@ -150,8 +157,14 @@
 
     // Event handler when 'destroy' is triggered on an instance
     instanceDestroy: function (instance) {
+      var id = instance.id;
       if (this.storage)
-        this.storage.remove(instance.id);
+        this.storage.remove(id);
+
+      // Stop tracking this model; otherwise mem leak (there are other
+      // sources of memory leaks we need to address, but hey, here's one)
+      if (this.instances[id])
+        delete this.instances[id];
     },
 
     // Event handler when 'sync' is triggered on the storage adapter
@@ -185,8 +198,23 @@
       if (!id)
         return this.newModel(attrs, options);
 
-      // Attempt to restore a cached instance
+      // Attempt to restore a locally cached instance
       var instance = this.instances[id];
+
+      // Attempt to restore a cached instance from storage
+      if(this.storage &&
+
+         // if this wasn't from a storage event
+         !options.fromStorage &&
+
+         // and there isn't already an existing instance
+         !instance
+        ) {
+          var instanceAttrs = this.storage.getFromStorage(this.storage.getStorageKey(id));
+          if (instanceAttrs)
+            instance = this.add(id, instanceAttrs, options);
+      }
+
       if (!instance) {
         // If we haven't seen this instance before, start caching it
         instance = this.add(id, attrs, options);
@@ -207,26 +235,27 @@
    * so that this can be swapped out for another adapter (i.e.
    * sessionStorage or a localStorage-backed library like lscache)
    */
-  function LocalStorageAdapter (modelName) {
+  function StorageAdapter (modelName, store) {
     this.modelName = modelName;
+    this.store = store;
 
-    LocalStorageAdapter.instances[modelName] = this;
+    StorageAdapter.instances[modelName] = this;
 
     // Global listener - only listen once
-    if (!LocalStorageAdapter.listener) {
-      LocalStorageAdapter.listener = window.addEventListener ?
-        window.addEventListener('storage', LocalStorageAdapter.onStorage, false) :
-        window.attachEvent('onstorage', LocalStorageAdapter.onStorage);
+    if (!StorageAdapter.listener) {
+      StorageAdapter.listener = window.addEventListener ?
+        window.addEventListener('storage', StorageAdapter.onStorage, false) :
+        window.attachEvent('onstorage', StorageAdapter.onStorage);
     }
   }
 
-  // Hash of LocalStorageAdapter instances
-  LocalStorageAdapter.instances = {};
+  // Hash of StorageAdapter instances
+  StorageAdapter.instances = {};
 
   // Reference to the global onstorage handler
-  LocalStorageAdapter.listener = null;
+  StorageAdapter.listener = null;
 
-  LocalStorageAdapter.onStorage = function (evt) {
+  StorageAdapter.onStorage = function (evt) {
     // TODO: IE fires onstorage even in the window that fired the
     //       change. Deal with that somehow.
     var key = evt.key;
@@ -248,20 +277,28 @@
     var modelName = match[1];
     var id = match[2];
 
-    var adapter = LocalStorageAdapter.instances[modelName];
+    var adapter = StorageAdapter.instances[modelName];
     if (!adapter)
       return;
 
     adapter.handleStorageEvent(key, id);
   };
 
-  _.extend(LocalStorageAdapter.prototype, {
+  _.extend(StorageAdapter.prototype, {
     handleStorageEvent: function (key, id) {
-      var json = localStorage.getItem(key);
-      if (!json)
+      var attrs = this.getFromStorage(key);
+      if (!attrs)
         this.trigger('destroy', id);
       else
-        this.trigger('sync', id, JSON.parse(json));
+        this.trigger('sync', id, attrs);
+    },
+
+    getFromStorage: function (key) {
+      try {
+        return JSON.parse(this.store.getItem(key));
+      } catch (err) {
+        return;
+      }
     },
 
     getStorageKey: function (id) {
@@ -280,26 +317,23 @@
         throw new Error('Cannot save without id');
 
       var json = JSON.stringify(attrs);
-      localStorage.setItem(this.getStorageKey(id), json);
+      this.store.setItem(this.getStorageKey(id), json);
     },
 
     remove: function (id) {
       if (!id)
         throw new Error('Cannot remove without id');
 
-      localStorage.removeItem(this.getStorageKey(id));
+      this.store.removeItem(this.getStorageKey(id));
     }
   }, Backbone.Events);
 
   // Exports
   _.extend(UniqueModel, {
     ModelCache: ModelCache,
-    LocalStorageAdapter: LocalStorageAdapter
+    StorageAdapter: StorageAdapter
   });
 
-  Backbone.UniqueModel = UniqueModel;
-
-  _.extend(exports, Backbone);
-  return Backbone;
+  return UniqueModel;
 
 }));

@@ -57,14 +57,18 @@
   /*test("uniques are merged when the ID is set retroactively", function () {
     var User = Backbone.Model.extend({});
     var UniqueUser = Backbone.UniqueModel(User);
-
     var newUser = new UniqueUser({name: 'John Doe'});
-
     var sameUser = new UniqueUser({id: 9});
-
     newUser.set("id", 9);
     equal(newUser, sameUser);
   });*/
+
+  test('preserves model\'s static attributes', function () {
+    var User = Backbone.Model.extend({}, { someStaticAttribute: 'test' });
+    var UniqueUser = Backbone.UniqueModel(User);
+
+    equal(UniqueUser.someStaticAttribute, 'test');
+  });
 
   test('collection maintains uniques', function () {
     var User = Backbone.Model.extend({});
@@ -90,6 +94,28 @@
     ok(_.any(users.models, function (obj) {
       return obj === user;
     }));
+  });
+
+  test('destroying intance removes from cache', function () {
+    var User = Backbone.Model.extend({});
+    var UniqueUser = Backbone.UniqueModel(User, 'DestroyTestUser');
+
+    var user = new UniqueUser({
+      id: 2,
+      name: 'Bobby Drake'
+    });
+
+    var modelCache = Backbone.UniqueModel.getModelCache('DestroyTestUser');
+    var model = modelCache.get({ id: 2});
+
+    equal(model, user);
+
+    model.trigger('destroy', model);
+
+    // Note that modelCache.get will create a new instance; so just verify
+    // new instance doesn't match old one
+    model = modelCache.get({ id: 2});
+    notEqual(model, user);
   });
 
   module('localStorage', {
@@ -133,7 +159,7 @@
   });
 
   test('storage handler processes valid keys correctly', function () {
-    var LocalStorageAdapter = Backbone.UniqueModel.LocalStorageAdapter;
+    var LocalStorageAdapter = Backbone.UniqueModel.StorageAdapter;
     LocalStorageAdapter.instances.User = { handleStorageEvent: function () {} };
     var restoreStub = sinon.stub(LocalStorageAdapter.instances.User, 'handleStorageEvent');
 
@@ -163,7 +189,7 @@
   });
 
   test("storage handler ignores invalid/unknown keys", function () {
-    var LocalStorageAdapter = Backbone.UniqueModel.LocalStorageAdapter;
+    var LocalStorageAdapter = Backbone.UniqueModel.StorageAdapter;
     LocalStorageAdapter.instances.User = { handleStorageEvent: function () {} };
     var restoreStub = sinon.stub(LocalStorageAdapter.instances.User, 'handleStorageEvent');
 
@@ -213,6 +239,23 @@
         start();
         equal(remoteInstance.get('name'), 'Charles Francis Xavier');
       }, LS_SYNC_DURATION);
+    });
+  });
+
+  asyncTest('local instance creation checks storage for cached instances', function () {
+    expect(1);
+
+    this.loadRemoteInstance(function (remoteInstance) {
+      var localInstance = new this.UniqueUser({
+        id: 1
+      });
+
+      // Give browser a chance to flush it's async onstorage handlers
+      setTimeout(function() {
+        start();
+        equal(localInstance.get('name'), 'Charles Xavier');
+      }, LS_SYNC_DURATION);
+
     });
   });
 
