@@ -136,6 +136,8 @@
           if (!this.instances[instance.id])
             this.instances[instance.id] = instance;
         }, this);
+      } else {
+        this.instances[instance.id] = instance;
       }
 
       if (this.storage) {

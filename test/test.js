@@ -96,6 +96,24 @@
     }));
   });
 
+  test('uniques are maintained when ID is generated in the constructor', function () {
+    var User = Backbone.Model.extend({
+      constructor: function(attr, options) {
+        var result = Backbone.Model.prototype.constructor.apply(this, arguments);
+        if(!this.id) this.set("id", (new Date()).getTime());
+        return result;
+      }
+    });
+    var UniqueUser = Backbone.UniqueModel(User);
+
+    var newUser = new UniqueUser({
+      name: 'Bobby Drake'
+    });
+    var sameUser = new UniqueUser({ id: newUser.id });
+
+    equal(newUser, sameUser);
+  });
+
   test('destroying intance removes from cache', function () {
     var User = Backbone.Model.extend({});
     var UniqueUser = Backbone.UniqueModel(User, 'DestroyTestUser');
