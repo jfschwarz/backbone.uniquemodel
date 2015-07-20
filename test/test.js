@@ -114,6 +114,23 @@
     equal(newUser, sameUser);
   });
 
+  test('collection property is set when retrieving a model from the cache with a `collection` option set', function () {
+    var User = Backbone.Model.extend({});
+    var UniqueUser = Backbone.UniqueModel(User);
+    var henry = new UniqueUser({ id: 1, name: 'Henry' });
+
+    var UserCollection = Backbone.Collection.extend({
+      model: UniqueUser
+    });
+
+    var users = new UserCollection([
+      { id: 1, name: 'Henry' },
+      { id: 2, name: 'Bobby' }
+    ]);
+
+    equal(henry.collection, users);
+  });
+
   test('destroying intance removes from cache', function () {
     var User = Backbone.Model.extend({});
     var UniqueUser = Backbone.UniqueModel(User, 'DestroyTestUser');

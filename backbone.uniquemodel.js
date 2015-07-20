@@ -228,6 +228,10 @@
         if (!options.fromStorage)
           this.instanceSync(instance);
       }
+
+      if(options.collection) {
+        instance.collection = options.collection;
+      }
       return instance;
     }
   });
