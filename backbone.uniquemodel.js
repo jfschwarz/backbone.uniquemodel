@@ -193,6 +193,7 @@
     get: function (attrs, options) {
       options = options || {};
       var Model = this.Model;
+      if(options.parse) attrs = Model.prototype.parse(attrs, options);
       var id = attrs && attrs[Model.prototype.idAttribute];
 
       // If there's no ID, this model isn't being tracked; return
